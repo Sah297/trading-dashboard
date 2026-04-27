@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trading-agent-v1';
+const CACHE_NAME = 'trading-agent-v3';
 const urlsToCache = [
   '/',
   '/index.html',
