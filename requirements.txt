@@ -2,11 +2,10 @@ anthropic
 alpaca-trade-api
 yfinance
 fastapi
-uvicorn
+uvicorn[standard]
 python-dotenv
 requests
-chromadb
-sentence-transformers
 pandas
 numpy
 schedule
+aiofiles
