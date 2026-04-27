@@ -1097,16 +1097,18 @@ const REGIME_DESC = {
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
+  const isPost = options.method === 'POST';
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
-      headers: {
+      mode: 'cors',
+      headers: isPost ? {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
         ...options.headers
-      },
-      mode: 'cors'
+      } : {
+        ...options.headers
+      }
     });
     clearTimeout(timeout);
     return response;
