@@ -978,6 +978,9 @@
   </style>
 </head>
 <body>
+<div id="debug-url" style="color:yellow;font-size:11px;text-align:center;padding:4px">
+  Connecting to: https://trading-agent-production-3b6b.up.railway.app
+</div>
 <div id="app">
 
   <!-- Top bar -->
@@ -1122,7 +1125,7 @@ function setStatus(state) {
     txt.textContent = 'Connected to Trading Agent';
   } else {
     dot.className = 'err';
-    txt.textContent = 'Cannot reach API - check WiFi';
+    txt.textContent = state === 'err' ? (S.lastError || 'Cannot reach API') : 'Cannot reach API';
   }
 }
 
@@ -1130,9 +1133,11 @@ async function checkHealth() {
   try {
     await fetchWithTimeout(API + '/health');
     S.connected = true;
+    S.lastError = null;
     setStatus('ok');
-  } catch {
+  } catch(e) {
     S.connected = false;
+    S.lastError = 'Error: ' + e.message;
     setStatus('err');
   }
 }
