@@ -577,18 +577,23 @@
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,0.7);
-      z-index: 600;
+      z-index: 9999;
       display: none;
-      align-items: flex-end;
-      justify-content: center;
     }
-    #modal-backdrop.show { display: flex; }
+    #modal-backdrop.show { display: block; }
     #modal-box {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       background: #1A1A1A;
-      border-radius: 20px 20px 0 0;
-      padding: 24px 20px 36px;
-      width: 100%;
+      border-radius: 20px;
+      padding: 24px 20px;
+      width: calc(100% - 40px);
       max-width: 480px;
+      max-height: 70vh;
+      overflow-y: auto;
+      z-index: 9999;
     }
     #modal-title {
       font-size: 17px;
