@@ -1,0 +1,6 @@
+{
+  "trading_budget": 10000.0,
+  "max_risk_per_trade": 0.015,
+  "max_open_positions": 8,
+  "last_updated": "2026-04-26 16:03 ET"
+}

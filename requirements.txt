@@ -1,0 +1,12 @@
+anthropic
+alpaca-trade-api
+yfinance
+fastapi
+uvicorn
+python-dotenv
+requests
+chromadb
+sentence-transformers
+pandas
+numpy
+schedule
