@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Trading Agent">
+  <meta name="theme-color" content="#0A0A0A">
+  <link rel="manifest" href="manifest.json">
+  <title>Trading Dashboard</title>
+  <style>
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0A0A0A; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #fff;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── App shell ──────────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* ── Status bar ─────────────────────────────────────────── */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: #111;
+      border-bottom: 1px solid #1F1F1F;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    #top-bar h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.2px; }
+    #api-indicator {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #888;
+    }
+    #api-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #444;
+      transition: background 0.4s;
+      flex-shrink: 0;
+    }
+    #api-dot.ok  { background: #00C853; }
+    #api-dot.err { background: #FF1744; }
+
+    /* ── Pull-to-refresh indicator ──────────────────────────── */
+    #ptr {
+      position: fixed;
+      top: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2979FF;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 20px;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #ptr.show { opacity: 1; }
+
+    /* ── Tab panels ─────────────────────────────────────────── */
+    #content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    .panel {
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease;
+    }
+    .panel.on { opacity: 1; pointer-events: all; }
+
+    /* ── Bottom nav ─────────────────────────────────────────── */
+    #nav {
+      display: flex;
+      background: #1A1A1A;
+      border-top: 1px solid #2A2A2A;
+      flex-shrink: 0;
+      height: 68px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nt {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border: none;
+      background: none;
+      color: #666;
+      cursor: pointer;
+      font-family: inherit;
+      position: relative;
+      transition: color 0.15s;
+      padding: 0;
+      min-height: 56px;
+    }
+    .nt.on { color: #2979FF; }
+    .nt .ico { font-size: 26px; line-height: 1; }
+    .nt .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.2px; }
+    #badge {
+      position: absolute;
+      top: 5px;
+      right: calc(50% - 20px);
+      background: #FF1744;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 10px;
+      min-width: 16px;
+      text-align: center;
+      display: none;
+    }
+
+    /* ── Shared components ──────────────────────────────────── */
+    .card {
+      background: #1A1A1A;
+      border-radius: 14px;
+      padding: 16px;
+      margin: 10px 12px 0;
+    }
+    .pg-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 16px 12px 6px;
+      letter-spacing: -0.3px;
+    }
+    .lbl {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .sec-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .divrow {
+      display: flex;
+      gap: 16px;
+    }
+    .divcol { flex: 1; }
+
+    /* Skeleton loader */
+    .skel-card {
+      background: #1A1A1A;
+      border-radius: 14px;
+      padding: 18px 16px;
+      margin: 10px 12px 0;
+    }
+    .skel {
+      background: linear-gradient(90deg, #252525 25%, #333 50%, #252525 75%);
+      background-size: 300% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .skel:last-child { margin-bottom: 0; }
+    .skel-xl  { height: 36px; width: 55%; }
+    .skel-lg  { height: 18px; width: 75%; }
+    .skel-md  { height: 14px; width: 60%; }
+    .skel-sm  { height: 12px; width: 40%; }
+    .skel-btn { height: 48px; width: 100%; border-radius: 10px; }
+    @keyframes shimmer {
+      0%   { background-position: 300% 0; }
+      100% { background-position: -300% 0; }
+    }
+
+    /* Error */
+    .err-box {
+      margin: 14px 12px;
+      padding: 22px 18px;
+      background: #1A0000;
+      border: 1px solid #FF1744;
+      border-radius: 14px;
+      color: #FF5252;
+      font-size: 14px;
+      line-height: 1.6;
+      text-align: center;
+    }
+    .retry-btn {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 28px;
+      background: #2979FF;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 48px;
+      font-family: inherit;
+      letter-spacing: 0.3px;
+    }
+    .retry-btn:active { opacity: 0.8; }
+
+    /* Buttons */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 11px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      margin-top: 10px;
+      letter-spacing: 0.3px;
+      min-height: 50px;
+      font-family: inherit;
+      transition: opacity 0.12s;
+    }
+    .btn:active { opacity: 0.78; }
+    .btn-blue  { background: #2979FF; }
+    .btn-green { background: #1B5E20; }
+    #pipe-msg  { font-size: 13px; color: #FFD600; text-align: center; margin-top: 10px; min-height: 18px; }
+
+    /* ── DASHBOARD ──────────────────────────────────────────── */
+    .acct-val {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 14px;
+      line-height: 1;
+    }
+    .pnl-val { font-size: 15px; font-weight: 600; }
+    .pos  { color: #00C853; }
+    .neg  { color: #FF1744; }
+    .ts   { font-size: 11px; color: #444; margin-top: 12px; }
+
+    .regime-card {
+      margin: 10px 12px 0;
+      border-radius: 14px;
+      padding: 26px 20px 22px;
+      text-align: center;
+    }
+    .regime-sub  { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+    .regime-big  { font-size: 32px; font-weight: 900; letter-spacing: 4px; }
+    .regime-desc { font-size: 13px; color: rgba(255,255,255,0.65); margin-top: 10px; font-weight: 500; }
+
+    .sector-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #2A2A2A;
+    }
+    .sector-row:last-child { border-bottom: none; }
+    .sname { font-size: 14px; font-weight: 500; }
+    .setf  { font-size: 13px; font-weight: 700; color: #2979FF; }
+
+    /* ── TRADES ─────────────────────────────────────────────── */
+    .trades-header { padding: 10px 12px 4px; }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .sum-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 2px;
+    }
+    .sum-bar .s-take   { color: #FFD700; }
+    .sum-bar .s-reduce { color: #2979FF; }
+
+    /* Card */
+    .tc {
+      background: #1A1A1A;
+      border-radius: 14px;
+      margin: 8px 12px 0;
+      padding: 14px;
+      overflow: hidden;
+      border-left: 4px solid transparent;
+    }
+    .tc.st-approved { border-left-color: #00C853; }
+    .tc.st-warning  { border-left-color: #FFD600; }
+    .tc.st-rejected { border-left-color: #FF1744; opacity: 0.55; }
+    .tc.decided     { opacity: 0.7; }
+    .tc.border-ok   { border-color: #2E7D32; border-left-color: #00C853; border-width: 1px; border-left-width: 4px; }
+    .tc.border-no   { border: 1px solid #7B0000; border-left-width: 4px; border-left-color: #FF1744; }
+
+    /* Decision banner */
+    .dec-banner {
+      padding: 6px;
+      border-radius: 7px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: 0.3px;
+    }
+    .dec-banner.ok  { background: #1B5E20; color: #00C853; }
+    .dec-banner.no  { background: #7B0000; color: #FF1744; }
+
+    /* Verdict badge (risk agent: TAKE IT / REDUCE SIZE / SKIP IT) */
+    .vb {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .vb-take   { background: #FFD700; color: #000; }
+    .vb-reduce { background: #2979FF; color: #fff; }
+    .vb-skip   { background: #444;    color: #bbb; }
+
+    /* Rejected badge */
+    .rej-badge {
+      display: inline-block;
+      padding: 5px 10px;
+      background: #2A0000;
+      border: 1px solid #FF1744;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #FF5252;
+      margin-top: 4px;
+    }
+
+    /* Ticker row */
+    .tkrow { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .tkname { font-size: 24px; font-weight: 800; }
+    .dir-b  {
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .long-b  { border-color: #00C853; color: #00C853; }
+    .short-b { border-color: #FF1744; color: #FF1744; }
+    .tsec    { margin-left: auto; font-size: 11px; color: #555; }
+
+    /* Prices */
+    .prrow { display: flex; margin-bottom: 10px; }
+    .prc   { flex: 1; }
+    .prlbl { font-size: 10px; text-transform: uppercase; color: #555; margin-bottom: 3px; }
+    .prval { font-size: 14px; font-weight: 600; }
+
+    /* Stats */
+    .strow     { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .st        { font-size: 12px; color: #666; }
+    .st b      { color: #fff; font-weight: 600; }
+    .st .nr    { color: #FF5252; }
+    .st .gn    { color: #00C853; }
+
+    /* Flag pills */
+    .flag-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .flag-pill  {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      line-height: 1.6;
+    }
+    .fp-ok      { background: #1B3A1B; color: #69F0AE; }
+    .fp-warn    { background: #3A2800; color: #FFD600; }
+    .fp-skip    { background: #2A1800; color: #FF8F00; }
+    .fp-rej     { background: #3A0000; color: #FF5252; }
+    .fp-default { background: #252525; color: #777; }
+
+    /* Buttons */
+    .tbrow { display: flex; gap: 10px; margin-top: 8px; }
+    .tb {
+      flex: 1;
+      padding: 16px 10px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      cursor: pointer;
+      min-height: 56px;
+      font-family: inherit;
+      letter-spacing: 0.4px;
+      transition: opacity 0.1s, transform 0.1s;
+    }
+    .tb:active     { opacity: 0.82; transform: scale(0.97); }
+    .tb-ok         { background: #00C853; }
+    .tb-ok-warn    { background: #1B5E20; border: 1px solid #FFD600; }
+    .tb-no         { background: #FF1744; }
+
+    /* ── Expandable "Why this trade?" ───────────────────────────── */
+    .expand-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: #222;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      color: #888;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .expand-btn:active { opacity: 0.75; }
+    .expand-arrow { transition: transform 0.2s; font-style: normal; }
+    .expand-btn.open .expand-arrow { transform: rotate(180deg); }
+
+    .expand-body {
+      display: none;
+      margin-top: 10px;
+      padding: 12px;
+      background: #111;
+      border-radius: 10px;
+      border-left: 3px solid #2979FF;
+    }
+    .expand-body.open { display: block; }
+
+    .ex-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 9px;
+      align-items: flex-start;
+    }
+    .ex-row:last-child { margin-bottom: 0; }
+    .ex-icon { font-size: 14px; min-width: 20px; flex-shrink: 0; }
+    .ex-content { flex: 1; }
+    .ex-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-bottom: 2px; }
+    .ex-text  { font-size: 13px; color: #CCC; line-height: 1.5; }
+    .ex-text.risk-text  { color: #FF7043; }
+    .ex-text.boost-text { color: #69F0AE; }
+    .ex-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .verdict-pass   { background: #1B5E20; color: #69F0AE; }
+    .verdict-caution { background: #7B3F00; color: #FFD600; }
+    .verdict-block  { background: #7B0000; color: #FF5252; }
+    .verdict-reduce { background: #1A237E; color: #82B1FF; }
+
+    /* ── ACCOUNT ─────────────────────────────────────────────── */
+    .hero {
+      background: #1A1A1A;
+      border-radius: 14px;
+      margin: 10px 12px 0;
+      padding: 22px 16px;
+      text-align: center;
+    }
+    .hero-val { font-size: 38px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+
+    .stats-strip {
+      background: #1A1A1A;
+      border-radius: 14px;
+      margin: 8px 12px 0;
+      padding: 14px 10px;
+      display: flex;
+    }
+    .sc { flex: 1; text-align: center; }
+    .sc .lbl { margin-bottom: 5px; }
+    .sc-val  { font-size: 13px; font-weight: 600; }
+    .vd { width: 1px; background: #2A2A2A; margin: 2px 0; }
+
+    .posrow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid #2A2A2A;
+    }
+    .posrow:last-child { border-bottom: none; }
+    .postk { font-size: 16px; font-weight: 700; }
+    .posdt { font-size: 12px; color: #888; margin-top: 2px; }
+    .pospnl { font-size: 15px; font-weight: 700; text-align: right; }
+    .pospct { font-size: 12px; text-align: right; margin-top: 2px; }
+
+    .proj-big { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .proj-sub { font-size: 13px; color: #888; }
+
+    /* ── REGIME ──────────────────────────────────────────────── */
+    .rh {
+      margin: 10px 12px 0;
+      border-radius: 14px;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    .rh-text { font-size: 36px; font-weight: 900; letter-spacing: 4px; }
+    .rh-note { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 10px; }
+
+    .brow { display: flex; gap: 10px; margin-bottom: 9px; align-items: flex-start; }
+    .bico { font-size: 13px; line-height: 20px; min-width: 18px; }
+    .btxt { font-size: 13px; color: #CCC; line-height: 20px; flex: 1; }
+    .body-txt { font-size: 13px; color: #AAA; line-height: 21px; }
+    .risk-edge { border-left: 3px solid #FF1744; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 32px 16px; }
+    .empty p   { color: #fff; font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .empty small { color: #666; font-size: 13px; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 84px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #222;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 22px;
+      border-radius: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      z-index: 500;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Confirm modal ───────────────────────────────────────── */
+    #modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 600;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #modal-backdrop.show { display: flex; }
+    #modal-box {
+      background: #1A1A1A;
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 36px;
+      width: 100%;
+      max-width: 480px;
+    }
+    #modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    #modal-sub {
+      font-size: 13px;
+      color: #888;
+      text-align: center;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .modal-btns { display: flex; gap: 12px; }
+    .modal-btn {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 56px;
+      font-family: inherit;
+      letter-spacing: 0.3px;
+    }
+    .modal-cancel  { background: #2A2A2A; color: #aaa; }
+    .modal-confirm { background: #00C853; color: #fff; }
+
+    /* ── P&L progress bar ────────────────────────────────────── */
+    .pnl-bar-wrap {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #2A2A2A;
+    }
+    .pnl-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .pnl-bar-track {
+      height: 8px;
+      background: #2A2A2A;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .pnl-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .pnl-bar-note { font-size: 11px; color: #555; margin-top: 6px; text-align: center; }
+
+    /* ── Tab footer ──────────────────────────────────────────── */
+    .tab-footer {
+      font-size: 11px;
+      color: #333;
+      text-align: center;
+      padding: 16px 12px 4px;
+    }
+
+    /* ── Budget card ─────────────────────────────────────────── */
+    .budget-big {
+      font-size: 36px;
+      font-weight: 800;
+      color: #2979FF;
+      letter-spacing: -0.5px;
+      margin: 6px 0 4px;
+    }
+    .budget-pct { font-size: 12px; color: #888; margin-bottom: 14px; }
+    .quick-row  {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .qbtn {
+      flex: 1;
+      min-width: 56px;
+      padding: 10px 4px;
+      border: 1px solid #2979FF;
+      background: transparent;
+      color: #2979FF;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s;
+    }
+    .qbtn.active, .qbtn:active { background: #2979FF; color: #fff; }
+    .budget-input-row { display: flex; gap: 8px; }
+    .budget-input {
+      flex: 1;
+      background: #2A2A2A;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 15px;
+      padding: 11px 12px;
+      font-family: inherit;
+    }
+    .budget-input:focus { outline: none; border-color: #2979FF; }
+    .set-btn {
+      padding: 11px 18px;
+      background: #2979FF;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      min-height: 48px;
+    }
+    .set-btn:active { opacity: 0.8; }
+
+    /* ── Settings tab ────────────────────────────────────────── */
+    .range-wrap  { margin: 12px 0 6px; }
+    .range-label { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px; }
+    .range-val   { color: #2979FF; font-weight: 700; }
+    input[type=range] {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #2A2A2A;
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #2979FF;
+      cursor: pointer;
+      border: 2px solid #0A0A0A;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #2979FF;
+      cursor: pointer;
+      border: 2px solid #0A0A0A;
+    }
+    .sched-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid #2A2A2A;
+    }
+    .sched-row:last-child { border-bottom: none; }
+    .sched-label { font-size: 14px; font-weight: 500; }
+    .sched-time  { font-size: 12px; color: #888; margin-top: 2px; }
+    .run-btn {
+      padding: 8px 16px;
+      background: #2979FF;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      min-height: 40px;
+    }
+    .run-btn:active { opacity: 0.8; }
+    .alloc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #2A2A2A;
+    }
+    .alloc-row:last-child { border-bottom: none; }
+    .alloc-label { font-size: 13px; color: #888; }
+    .alloc-value { font-size: 14px; font-weight: 600; }
+    .budget-bar-track {
+      height: 8px;
+      background: #2A2A2A;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .budget-bar-fill {
+      height: 100%;
+      background: #2979FF;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .budget-bar-note { font-size: 11px; color: #666; margin-top: 6px; text-align: center; }
+    .pipeline-stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #2A2A2A;
+      font-size: 13px;
+    }
+    .pipeline-stat-row:last-child { border-bottom: none; }
+    .ps-label { color: #888; }
+    .ps-val   { font-weight: 600; }
+    .save-all-btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      background: #2979FF;
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      font-family: inherit;
+      min-height: 50px;
+    }
+    .save-all-btn:active { opacity: 0.8; }
+
+    /* ── Capital card (account tab) ─────────────────────────── */
+    .capital-card {
+      background: #1A1A1A;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 10px 12px 0;
+    }
+    .capital-row { padding: 12px 0; }
+    .capital-label {
+      color: #888;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .capital-value {
+      color: #fff;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .capital-value.big   { font-size: 32px; font-weight: 800; }
+    .capital-value.green { color: #00C853; }
+    .capital-value.red   { color: #FF1744; }
+    .capital-value.gold  { color: #FFD700; }
+    .capital-bar {
+      height: 6px;
+      background: #2A2A2A;
+      border-radius: 3px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .capital-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .capital-fill.green  { background: #00C853; }
+    .capital-fill.blue   { background: #2979FF; }
+    .capital-fill.orange { background: #FF6D00; }
+    .capital-fill.grey   { background: #444; }
+    .capital-divider { height: 1px; background: #2A2A2A; }
+    .capital-sub { color: #666; font-size: 12px; margin-top: 3px; }
+    .highlight-green {
+      background: rgba(0,200,83,0.05);
+      border-radius: 8px;
+      padding: 12px !important;
+      border: 1px solid rgba(0,200,83,0.2);
+      margin: 0 -4px;
+    }
+
+    /* ── Budget banner (trades tab) ──────────────────────────── */
+    .budget-banner {
+      background: #1A1A1A;
+      border: 1px solid rgba(0,200,83,0.3);
+      border-radius: 12px;
+      padding: 14px;
+      margin: 10px 12px 0;
+      transition: border-color 0.3s;
+    }
+    .budget-banner.exhausted { border-color: rgba(255,109,0,0.5); }
+    .budget-banner-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .budget-label  { color: #888; font-size: 13px; }
+    .budget-amount {
+      color: #00C853;
+      font-size: 22px;
+      font-weight: 700;
+      transition: color 0.3s;
+    }
+    .budget-amount.exhausted { color: #FF6D00; }
+    .budget-sub { color: #666; font-size: 11px; }
+
+    /* ── Capital Overview card ───────────────────────────────── */
+    .cap-section {
+      padding: 12px 0;
+      border-bottom: 1px solid #222;
+    }
+    .cap-section:last-child { border-bottom: none; padding-bottom: 0; }
+    .cap-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .cap-label { font-size: 12px; color: #888; }
+    .cap-value { font-size: 18px; font-weight: 800; }
+    .cap-sub   { font-size: 11px; color: #555; margin-top: 4px; }
+    .cap-bar-track {
+      height: 7px;
+      background: #2A2A2A;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .cap-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.45s ease;
+    }
+    .cap-available { color: #00C853; }
+    .cap-committed { color: #2979FF; }
+    .cap-budget    { color: #FFD700; }
+
+    /* Dashboard compact capital card */
+    .dash-cap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #2A2A2A;
+    }
+    .dash-cap-cell .lbl { margin-bottom: 2px; }
+    .dash-cap-cell .val { font-size: 14px; font-weight: 700; }
+
+    /* Trades capital bar */
+    .cap-trades-bar {
+      background: #1A1A1A;
+      border-radius: 12px;
+      margin: 8px 12px 0;
+      padding: 14px 16px;
+    }
+    .ctb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .ctb-label { font-size: 13px; font-weight: 600; color: #fff; }
+    .ctb-value { font-size: 16px; font-weight: 800; color: #00C853; }
+    .ctb-sub   { font-size: 11px; color: #666; margin-top: 4px; }
+    .ctb-exhausted {
+      background: #1A0A00;
+      border: 1px solid #FF6D00;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #FF8F00;
+      text-align: center;
+    }
+    .jump-btn {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 8px 16px;
+      background: #2979FF;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* Budget preview hint */
+    .budget-preview {
+      font-size: 12px;
+      color: #888;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="top-bar">
+    <h1>📈 Trading</h1>
+    <div id="api-indicator">
+      <div id="api-dot"></div>
+      <span id="api-txt">Connecting…</span>
+    </div>
+  </div>
+
+  <!-- Pull-to-refresh -->
+  <div id="ptr">↓ Pull to refresh</div>
+
+  <!-- Tab panels -->
+  <div id="content">
+    <div class="panel on" id="p-dashboard"></div>
+    <div class="panel"    id="p-trades"></div>
+    <div class="panel"    id="p-account"></div>
+    <div class="panel"    id="p-regime"></div>
+    <div class="panel"    id="p-settings"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav id="nav">
+    <button class="nt on" data-tab="dashboard">
+      <span class="ico">🏠</span>
+      <span class="lbl">Dashboard</span>
+    </button>
+    <button class="nt" data-tab="trades">
+      <span class="ico">📊</span>
+      <span class="lbl">Trades</span>
+      <span id="badge"></span>
+    </button>
+    <button class="nt" data-tab="account">
+      <span class="ico">💼</span>
+      <span class="lbl">Account</span>
+    </button>
+    <button class="nt" data-tab="regime">
+      <span class="ico">🌐</span>
+      <span class="lbl">Regime</span>
+    </button>
+    <button class="nt" data-tab="settings">
+      <span class="ico">⚙️</span>
+      <span class="lbl">Settings</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Confirm modal -->
+<div id="modal-backdrop">
+  <div id="modal-box">
+    <div id="modal-title"></div>
+    <div id="modal-sub"></div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-cancel"  onclick="hideConfirm()">Cancel</button>
+      <button class="modal-btn modal-confirm" id="modal-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Config ──────────────────────────────────────────────────── */
+const API = 'http://192.168.178.220:8080';
+
+/* ── State ───────────────────────────────────────────────────── */
+const S = {
+  tab:        'dashboard',
+  account:    null,
+  regime:     null,
+  sectors:    null,
+  trades:     [],
+  riskReport: null,
+  settings:   null,
+  decisions:  {},    // ticker → 'approved' | 'skipped'
+  connected:  false,
+  fetchedAt:  {},    // tab → Date
+};
+
+/* ── Utilities ───────────────────────────────────────────────── */
+const $  = id => document.getElementById(id);
+const qs = sel => document.querySelector(sel);
+
+function esc(v) {
+  if (v == null) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const f2  = n => n == null ? 'N/A' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const f0  = n => n == null ? 'N/A' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const sgn = n => n >= 0 ? '+' : '';
+const pc  = n => n >= 0 ? 'pos' : 'neg';
+
+const REGIME_BG   = { BULLISH: '#1B5E20', CAUTIOUS: '#7B3F00', DEFENSIVE: '#7B2500', PAUSE: '#7B0000' };
+const REGIME_FG   = { BULLISH: '#00C853', CAUTIOUS: '#FFD600', DEFENSIVE: '#FF6D00', PAUSE: '#FF1744' };
+const REGIME_DESC = {
+  BULLISH:   'Markets favorable — full position sizing',
+  CAUTIOUS:  'Proceed carefully — reduced position sizing',
+  DEFENSIVE: 'Capital preservation mode — minimal exposure',
+  PAUSE:     'Do not trade — wait for clarity',
+};
+
+/* ── fetchWithTimeout ────────────────────────────────────────── */
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeout);
+    return response;
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+async function api(path, opts = {}) {
+  const res = await fetchWithTimeout(API + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+/* ── Connection status ───────────────────────────────────────── */
+function setStatus(state) {
+  const dot = $('api-dot');
+  const txt = $('api-txt');
+  if (state === 'connecting') {
+    dot.className = '';
+    txt.textContent = 'Connecting...';
+  } else if (state === 'ok') {
+    dot.className = 'ok';
+    txt.textContent = 'Connected to Trading Agent';
+  } else {
+    dot.className = 'err';
+    txt.textContent = 'Cannot reach API - check WiFi';
+  }
+}
+
+async function checkHealth() {
+  try {
+    await fetchWithTimeout(API + '/health');
+    S.connected = true;
+    setStatus('ok');
+  } catch {
+    S.connected = false;
+    setStatus('err');
+  }
+}
+
+/* ── Toast ───────────────────────────────────────────────────── */
+let toastTimer = null;
+function showToast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ── Confirm modal ───────────────────────────────────────────── */
+function showConfirm(title, sub, onConfirm) {
+  $('modal-title').textContent = title;
+  $('modal-sub').textContent   = sub;
+  $('modal-ok').onclick        = () => { hideConfirm(); onConfirm(); };
+  $('modal-backdrop').classList.add('show');
+}
+function hideConfirm() {
+  $('modal-backdrop').classList.remove('show');
+}
+
+/* ── Tab footer ──────────────────────────────────────────────── */
+function tabFooter(tab) {
+  const d = S.fetchedAt[tab];
+  if (!d) return '';
+  const t = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return `<div class="tab-footer">Last updated: ${t}</div>`;
+}
+
+/* ── Tab switching ───────────────────────────────────────────── */
+function switchTab(tab) {
+  if (S.tab === tab) return;
+  S.tab = tab;
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nt').forEach(b => b.classList.remove('on'));
+  $('p-' + tab).classList.add('on');
+  qs(`.nt[data-tab="${tab}"]`).classList.add('on');
+  loadTab(tab);
+}
+
+function loadTab(t) {
+  if (t === 'dashboard') return loadDashboard();
+  if (t === 'trades')    return loadTrades();
+  if (t === 'account')   return loadAccount();
+  if (t === 'regime')    return loadRegime();
+  if (t === 'settings')  return loadSettings();
+}
+
+/* ── Skeleton / error ────────────────────────────────────────── */
+function skeleton() {
+  return `
+    <div class="skel-card">
+      <div class="skel skel-sm" style="width:30%;margin-bottom:8px"></div>
+      <div class="skel skel-xl"></div>
+      <div style="display:flex;gap:16px;margin-top:12px">
+        <div style="flex:1"><div class="skel skel-sm"></div><div class="skel skel-lg"></div></div>
+        <div style="flex:1"><div class="skel skel-sm"></div><div class="skel skel-lg"></div></div>
+      </div>
+    </div>
+    <div class="skel-card" style="height:80px"></div>
+    <div class="skel-card">
+      <div class="skel skel-md" style="width:40%;margin-bottom:14px"></div>
+      <div class="skel skel-lg"></div>
+      <div class="skel skel-md" style="margin-top:8px"></div>
+      <div class="skel skel-sm" style="margin-top:8px"></div>
+    </div>
+    <div class="skel-card">
+      <div class="skel skel-btn" style="margin-bottom:10px"></div>
+      <div class="skel skel-btn"></div>
+    </div>`;
+}
+
+function errBox(m) {
+  return `
+    <div class="err-box">
+      <div style="font-size:18px;margin-bottom:8px">⚠</div>
+      <div style="font-weight:700;margin-bottom:6px">Unable to load data. Check API connection.</div>
+      <div style="font-size:12px;color:#888;margin-bottom:4px">${esc(m)}</div>
+      <div style="font-size:11px;color:#666;margin-bottom:4px">${esc(API)}</div>
+      <button class="retry-btn" onclick="loadTab(S.tab)">↺ Retry</button>
+    </div>`;
+}
+
+/* ── DASHBOARD ───────────────────────────────────────────────── */
+async function loadDashboard() {
+  const el = $('p-dashboard');
+  el.innerHTML = skeleton();
+  try {
+    const [acct, reg, sec, sett] = await Promise.all([
+      api('/account'),
+      api('/regime'),
+      api('/sectors'),
+      api('/settings'),
+    ]);
+    S.account  = acct;
+    S.regime   = reg;
+    S.sectors  = sec;
+    S.settings = sett;
+    S.fetchedAt.dashboard = new Date();
+    renderDashboard();
+  } catch {
+    el.innerHTML = errBox('Could not load dashboard data.');
+  }
+}
+
+function renderDashboard() {
+  const el     = $('p-dashboard');
+  const a      = S.account  || {};
+  const r      = S.regime   || {};
+  const rk     = (r.regime || 'CAUTIOUS').toUpperCase();
+  const rbg    = REGIME_BG[rk] || '#333';
+  const rfg    = REGIME_FG[rk] || '#fff';
+  const dp     = a.daily_pnl     || 0;
+  const dpPct  = a.daily_pnl_pct || 0;
+  const hot    = (S.sectors?.hot_sectors || []).slice(0, 3);
+  const dClass = pc(dp);
+
+  const manual   = a.manual_budget       || S.settings?.trading_budget || 0;
+  const avail    = a.available_to_invest  ?? 0;
+  const committed = a.committed_capital   || 0;
+  const nPos      = a.open_positions_count ?? 0;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="divrow" style="align-items:flex-start">
+        <div class="divcol">
+          <div class="lbl">Account Value</div>
+          <div class="acct-val" style="font-size:30px">$${f0(a.account_value)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="lbl">Daily P&amp;L</div>
+          <div class="pnl-val ${dClass}">${sgn(dp)}$${f2(Math.abs(dp))}</div>
+          <div style="font-size:11px;color:#555">(${sgn(dpPct)}${Number(dpPct).toFixed(2)}%)</div>
+        </div>
+      </div>
+      <div class="dash-cap">
+        <div class="dash-cap-cell">
+          <div class="lbl">Budget</div>
+          <div class="val cap-budget">$${f0(manual)}</div>
+        </div>
+        <div class="dash-cap-cell">
+          <div class="lbl">Available</div>
+          <div class="val cap-available">$${f0(avail)}</div>
+        </div>
+        <div class="dash-cap-cell">
+          <div class="lbl">In Trades</div>
+          <div class="val cap-committed">$${f0(committed)}</div>
+        </div>
+        <div class="dash-cap-cell">
+          <div class="lbl">Positions</div>
+          <div class="val">${nPos}</div>
+        </div>
+      </div>
+      ${a.last_updated ? `<div class="ts" style="margin-top:8px">Updated: ${esc(a.last_updated)}</div>` : ''}
+    </div>
+
+    <div class="regime-card" style="background:${rbg}">
+      <div class="regime-sub">Market Regime</div>
+      <div class="regime-big" style="color:${rfg}">${esc(rk)}</div>
+      <div class="regime-desc">${esc(REGIME_DESC[rk] || '')}</div>
+    </div>
+
+    ${hot.length ? `
+    <div class="card">
+      <div class="sec-title">🔥 Hot Sectors</div>
+      ${hot.map(s => `
+        <div class="sector-row">
+          <span class="sname">${esc(s.name)}</span>
+          <span class="setf">${esc(s.etf)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    <div class="card">
+      <div class="sec-title">Pipeline Controls</div>
+      <button class="btn btn-blue" onclick="runPipeline('run')">🌅 Run Morning Pipeline</button>
+      <button class="btn btn-green" onclick="runPipeline('midday')">☀️ Run Midday Pipeline</button>
+      <div id="pipe-msg"></div>
+    </div>
+
+    ${budgetCard()}
+    ${tabFooter('dashboard')}
+  `;
+}
+
+function runPipeline(type) {
+  const msg = $('pipe-msg');
+  if (!msg) return;
+  const endpoint = type === 'run' ? '/pipeline/run' : '/pipeline/midday';
+  const label    = type === 'run' ? 'Morning Pipeline' : 'Midday Pipeline';
+  msg.textContent = `Starting ${label}…`;
+  api(endpoint, { method: 'POST' })
+    .then(d => { msg.textContent = d.message || `${label} started`; })
+    .catch(() => { msg.textContent = 'Error — could not reach server'; })
+    .finally(() => setTimeout(() => { if ($('pipe-msg')) $('pipe-msg').textContent = ''; }, 5000));
+}
+
+/* ── Budget helpers ──────────────────────────────────────────── */
+function budgetCard(idPrefix = 'db') {
+  const sett    = S.settings || {};
+  const budget  = sett.trading_budget || 20000;
+  const acct    = S.account || {};
+  const avail   = acct.available_to_invest ?? acct.buying_power ?? 0;
+  const acctVal = acct.account_value || 0;
+  const pct     = avail > 0 ? ((budget / avail) * 100).toFixed(0) : '—';
+  const pctLine = avail > 0
+    ? `$${f0(budget)} budget of $${f0(avail)} available (${pct}%)`
+    : 'Account data not yet loaded';
+
+  return `
+    <div class="card">
+      <div class="sec-title">💰 Today's Trading Budget</div>
+      <div class="budget-big" id="${idPrefix}-budget-display">$${f0(budget)}</div>
+      <div class="budget-pct" id="${idPrefix}-budget-pct">${pctLine}</div>
+      <div class="quick-row">
+        ${[10000,20000,50000,100000].map(v =>
+          `<button class="qbtn ${budget===v?'active':''}" onclick="setBudgetQuick(${v},'${idPrefix}')">${v>=1000?'$'+v/1000+'K':v}</button>`
+        ).join('')}
+      </div>
+      <div class="budget-input-row">
+        <input class="budget-input" type="number" id="${idPrefix}-budget-input"
+               placeholder="Custom amount" value="${budget}" min="1000" step="1000">
+        <button class="set-btn" onclick="saveBudget('${idPrefix}')">Set Budget</button>
+      </div>
+    </div>`;
+}
+
+function setBudgetQuick(amount, prefix = 'db') {
+  const inp = $(prefix + '-budget-input');
+  if (inp) inp.value = amount;
+  document.querySelectorAll('.qbtn').forEach(b => {
+    b.classList.toggle('active', b.textContent === (amount >= 1000 ? '$' + amount/1000 + 'K' : String(amount)));
+  });
+}
+
+function saveBudget(prefix = 'db') {
+  const inp = $(prefix + '-budget-input');
+  const val = inp ? parseFloat(inp.value) : null;
+  if (!val || val < 1000) { showToast('⚠ Enter a valid amount (min $1,000)'); return; }
+  api('/settings', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ trading_budget: val }),
+  }).then(d => {
+    S.settings = d;
+    // Refresh any rendered budget cards
+    if (S.tab === 'dashboard') renderDashboard();
+    if (S.tab === 'settings')  renderSettings();
+    showToast(`✅ Budget set to $${f0(val)} — next pipeline run will use this`);
+  }).catch(() => showToast('⚠ Could not save budget — check API connection'));
+}
+
+/* ── Budget preview (live calculation while typing) ─────────── */
+function previewBudget(amount, prefix) {
+  const val      = parseFloat(amount) || 0;
+  const inp      = $(prefix + '-budget-input');
+  const preview  = $(prefix + '-budget-preview');
+  const acct     = S.account || {};
+  const committed = acct.committed_capital || 0;
+  const cash      = acct.cash_available || acct.account_value || 0;
+  if (inp && parseFloat(inp.value) !== val) inp.value = val;
+  if (preview && val > 0) {
+    const newAvail = Math.max(0, val - committed);
+    const pct = (newAvail / val * 100).toFixed(0);
+    preview.textContent = `$${f0(val)} budget → $${f0(newAvail)} available (${pct}% free)`;
+    if (val > cash) preview.style.color = '#FF5252';
+    else            preview.style.color = '#888';
+  }
+}
+
+/* ── Save budget via POST /budget ────────────────────────────── */
+function saveBudgetDirect(prefix) {
+  const inp = $(prefix + '-budget-input');
+  const val = inp ? parseFloat(inp.value) : null;
+  if (!val || val < 1000) { showToast('⚠ Enter a valid amount (min $1,000)'); return; }
+
+  api('/budget', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ amount: val }),
+  }).then(d => {
+    // Update local state immediately
+    if (S.account) {
+      S.account.manual_budget       = d.manual_budget;
+      S.account.remaining_budget    = d.remaining_budget;
+      S.account.available_to_invest = d.remaining_budget;
+    }
+    if (S.settings) S.settings.trading_budget = d.manual_budget;
+    // Re-render active tab
+    if (S.tab === 'account')   renderAccount();
+    if (S.tab === 'dashboard') renderDashboard();
+    if (S.tab === 'settings')  renderSettings();
+    if (S.tab === 'trades')    renderTrades();
+    showToast(`✅ Budget updated! Available: $${f0(d.remaining_budget)}`);
+  }).catch(() => showToast('⚠ Could not update budget — check API connection'));
+}
+
+/* ── SETTINGS tab ────────────────────────────────────────────── */
+async function loadSettings() {
+  const el = $('p-settings');
+  el.innerHTML = skeleton();
+  try {
+    const [sett, risk] = await Promise.all([
+      api('/settings'),
+      api('/report/risk').catch(() => null),
+    ]);
+    S.settings  = sett;
+    S.riskReport = risk;
+    S.fetchedAt.settings = new Date();
+    renderSettings();
+  } catch {
+    el.innerHTML = errBox('Could not load settings.');
+  }
+}
+
+function renderSettings() {
+  const el   = $('p-settings');
+  const sett = S.settings  || {};
+  const acct = S.account   || {};
+  const risk = S.riskReport || {};
+
+  const budget     = sett.trading_budget     || 20000;
+  const riskPct    = (sett.max_risk_per_trade || 0.01) * 100;
+  const maxPos     = sett.max_open_positions  || 8;
+  const acctVal    = acct.account_value        || 0;
+  const available  = acct.available_to_invest  ?? acct.buying_power ?? 0;
+  const committed  = acct.committed_capital    || 0;
+  const unalloc    = Math.max(0, available - budget);
+  const budgetBarPct = available > 0 ? Math.min(100, (budget / available) * 100).toFixed(1) : 0;
+
+  // Pipeline status from risk report
+  const trades = risk.trades || [];
+  const nAppr  = trades.filter(t => t.status === 'APPROVED').length;
+  const nWarn  = trades.filter(t => t.status === 'WARNING').length;
+  const nRej   = trades.filter(t => t.status === 'REJECTED').length;
+  const regime = risk.regime || '—';
+
+  el.innerHTML = `
+    <div style="margin:14px 12px 0">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">App Settings</div>
+    </div>
+
+    <!-- Budget card -->
+    ${budgetCard('st')}
+
+    <!-- Risk & position sliders -->
+    <div class="card">
+      <div class="sec-title">⚙️ Risk Settings</div>
+      <div class="range-wrap" style="margin-top:4px">
+        <div class="range-label">
+          <span>Max Risk Per Trade</span>
+          <span class="range-val" id="risk-label">${riskPct.toFixed(1)}%</span>
+        </div>
+        <input type="range" id="s-risk-slider" min="0.5" max="3" step="0.1"
+               value="${riskPct.toFixed(1)}"
+               oninput="$('risk-label').textContent = parseFloat(this.value).toFixed(1)+'%'">
+        <div class="range-label"><span>0.5%</span><span>3.0%</span></div>
+      </div>
+
+      <div class="range-wrap" style="margin-top:10px">
+        <div class="range-label">
+          <span>Max Open Positions</span>
+          <span class="range-val" id="pos-label">${maxPos}</span>
+        </div>
+        <input type="range" id="s-pos-slider" min="3" max="10" step="1"
+               value="${maxPos}"
+               oninput="$('pos-label').textContent = this.value">
+        <div class="range-label"><span>3</span><span>10</span></div>
+      </div>
+
+      <button class="save-all-btn" onclick="saveAllSettings()">💾 Save All Settings</button>
+    </div>
+
+    <!-- Schedule -->
+    <div class="card">
+      <div class="sec-title">🕐 Run Schedule</div>
+      <div class="sched-row">
+        <div>
+          <div class="sched-label">Morning Pipeline</div>
+          <div class="sched-time">Recommended: 9:30am ET</div>
+        </div>
+        <button class="run-btn" onclick="runPipelineNow('run')">Run Now</button>
+      </div>
+      <div class="sched-row">
+        <div>
+          <div class="sched-label">Midday Pipeline</div>
+          <div class="sched-time">Recommended: 12:00pm ET</div>
+        </div>
+        <button class="run-btn" onclick="runPipelineNow('midday')">Run Now</button>
+      </div>
+      <div class="sched-row">
+        <div>
+          <div class="sched-label">Late Session Pipeline</div>
+          <div class="sched-time">Recommended: 3:00pm ET</div>
+        </div>
+        <button class="run-btn" onclick="runPipelineNow('run')">Run Now</button>
+      </div>
+    </div>
+
+    <!-- Account allocation -->
+    <div class="card">
+      <div class="sec-title">💼 Capital Allocation</div>
+      <div class="alloc-row">
+        <span class="alloc-label">Real Alpaca Balance</span>
+        <span class="alloc-value">$${f0(acctVal)}</span>
+      </div>
+      <div class="alloc-row">
+        <span class="alloc-label">Buying Power (Available)</span>
+        <span class="alloc-value" style="color:#00C853">$${f0(available)}</span>
+      </div>
+      <div class="alloc-row">
+        <span class="alloc-label">Committed in Open Trades</span>
+        <span class="alloc-value" style="color:#2979FF">$${f0(committed)}</span>
+      </div>
+      <div class="alloc-row">
+        <span class="alloc-label">Manual Budget Override</span>
+        <span class="alloc-value" style="color:#FFD700">$${f0(budget)}</span>
+      </div>
+      <div class="alloc-row">
+        <span class="alloc-label">Remaining After Budget</span>
+        <span class="alloc-value" style="color:#888">$${f0(unalloc)}</span>
+      </div>
+      <div class="budget-bar-track" style="margin-top:10px">
+        <div class="budget-bar-fill" style="width:${budgetBarPct}%"></div>
+      </div>
+      <div class="budget-bar-note">Manual budget is ${budgetBarPct}% of available capital</div>
+    </div>
+
+    <!-- Pipeline status -->
+    <div class="card">
+      <div class="sec-title">📊 Last Pipeline Status</div>
+      ${trades.length === 0
+        ? '<p style="color:#666;font-size:14px">No pipeline data yet — run the pipeline first.</p>'
+        : `
+        <div class="pipeline-stat-row">
+          <span class="ps-label">Regime</span>
+          <span class="ps-val">${esc(regime)}</span>
+        </div>
+        <div class="pipeline-stat-row">
+          <span class="ps-label">Approved trades</span>
+          <span class="ps-val" style="color:#00C853">${nAppr}</span>
+        </div>
+        <div class="pipeline-stat-row">
+          <span class="ps-label">Warnings</span>
+          <span class="ps-val" style="color:#FFD600">${nWarn}</span>
+        </div>
+        <div class="pipeline-stat-row">
+          <span class="ps-label">Rejected</span>
+          <span class="ps-val" style="color:#FF1744">${nRej}</span>
+        </div>
+        <div class="pipeline-stat-row">
+          <span class="ps-label">Settings last saved</span>
+          <span class="ps-val" style="font-size:12px">${esc(sett.last_updated || 'Never')}</span>
+        </div>`
+      }
+    </div>
+
+    ${tabFooter('settings')}
+  `;
+}
+
+function saveAllSettings() {
+  const riskSlider = $('s-risk-slider');
+  const posSlider  = $('s-pos-slider');
+  const budgetInp  = $('st-budget-input');
+  const budget     = budgetInp ? parseFloat(budgetInp.value) : (S.settings?.trading_budget || 20000);
+  const riskPct    = riskSlider ? parseFloat(riskSlider.value) / 100 : 0.01;
+  const maxPos     = posSlider  ? parseInt(posSlider.value)           : 8;
+
+  api('/settings', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ trading_budget: budget, max_risk_per_trade: riskPct, max_open_positions: maxPos }),
+  }).then(d => {
+    S.settings = d;
+    renderSettings();
+    showToast('✅ Settings saved — next pipeline run will use these');
+  }).catch(() => showToast('⚠ Could not save settings — check API connection'));
+}
+
+function runPipelineNow(type) {
+  const endpoint = type === 'run' ? '/pipeline/run' : '/pipeline/midday';
+  const label    = type === 'run' ? 'Morning Pipeline' : 'Midday Pipeline';
+  showToast(`Starting ${label}…`);
+  api(endpoint, { method: 'POST' })
+    .then(d => showToast(`✅ ${d.message || label + ' started'}`))
+    .catch(() => showToast('⚠ Could not reach server'));
+}
+
+/* ── TRADES ──────────────────────────────────────────────────── */
+async function loadTrades() {
+  const el = $('p-trades');
+  el.innerHTML = skeleton();
+  try {
+    const d  = await api('/trades/cleared');
+    S.trades = d.trades || [];
+    S.fetchedAt.trades = new Date();
+    updateBadge(d.count || 0);
+    renderTrades();
+  } catch {
+    el.innerHTML = errBox('Could not load trades.');
+  }
+}
+
+function updateBadge(n) {
+  const b = $('badge');
+  if (!b) return;
+  b.textContent = n;
+  b.style.display = n > 0 ? 'block' : 'none';
+}
+
+/* ── Risk verdict badge (gold/blue/grey in card header) ─────── */
+function riskVerdictBadge(v) {
+  if (!v) return '';
+  const u = v.toUpperCase();
+  if (u.includes('TAKE'))   return `<span class="vb vb-take">● ${esc(v)}</span>`;
+  if (u.includes('REDUCE')) return `<span class="vb vb-reduce">● ${esc(v)}</span>`;
+  return `<span class="vb vb-skip">● ${esc(v)}</span>`;
+}
+
+/* ── Flag pill (colour by content) ──────────────────────────── */
+function flagPill(flag) {
+  if (!flag) return '';
+  const u = flag.toUpperCase();
+  if (u.includes('NO ISSUES'))  return `<span class="flag-pill fp-ok">${esc(flag)}</span>`;
+  if (u.includes('DOWNGRADED') || u.includes('SKIP IT'))
+                                 return `<span class="flag-pill fp-skip">${esc(flag)}</span>`;
+  if (u.includes('REJECTED'))   return `<span class="flag-pill fp-rej">${esc(flag)}</span>`;
+  if (u.includes('WARNING') || u.includes('PDT') || u.includes('SECTOR') || u.includes('CONCENTRATION'))
+                                 return `<span class="flag-pill fp-warn">${esc(flag)}</span>`;
+  return `<span class="flag-pill fp-default">${esc(flag)}</span>`;
+}
+
+/* ── Expandable "Why this trade?" ───────────────────────────── */
+function expandSection(t) {
+  const hasData = t.biggest_risk || t.confidence_booster || t.compliance_reason ||
+                  t.why_selected || t.setup_type || t.time_horizon;
+  if (!hasData) return '';
+
+  const id = 'ex-' + t.ticker.replace(/[^A-Z0-9]/g, '');
+
+  return `
+    <button class="expand-btn" id="btn-${id}" onclick="toggleExpand('${id}')">
+      <span>📋 Why this trade? ▾</span>
+      <span class="expand-arrow"></span>
+    </button>
+    <div class="expand-body" id="${id}">
+
+      ${t.setup_type || t.time_horizon || t.confidence ? `
+      <div class="ex-row">
+        <span class="ex-icon">📊</span>
+        <div class="ex-content">
+          ${t.setup_type   ? `<div class="ex-label">Setup</div><div class="ex-text">${esc(t.setup_type)}</div>` : ''}
+          ${t.time_horizon ? `<div class="ex-label" style="margin-top:5px">Time Horizon</div><div class="ex-text">${esc(t.time_horizon)}</div>` : ''}
+          ${t.confidence   ? `<div class="ex-label" style="margin-top:5px">Confidence</div><div class="ex-text">${esc(t.confidence)}</div>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${t.why_selected ? `
+      <div class="ex-row">
+        <span class="ex-icon">🎯</span>
+        <div class="ex-content">
+          <div class="ex-label">Why selected</div>
+          <div class="ex-text">${esc(t.why_selected)}</div>
+        </div>
+      </div>` : ''}
+
+      ${t.biggest_risk ? `
+      <div class="ex-row">
+        <span class="ex-icon">⚠️</span>
+        <div class="ex-content">
+          <div class="ex-label" style="color:#FF6D00">Biggest Risk</div>
+          <div class="ex-text" style="color:#FF6D00">${esc(t.biggest_risk)}</div>
+        </div>
+      </div>` : ''}
+
+      ${t.confidence_booster ? `
+      <div class="ex-row">
+        <span class="ex-icon">💡</span>
+        <div class="ex-content">
+          <div class="ex-label" style="color:#2979FF">What Would Help</div>
+          <div class="ex-text" style="color:#82B1FF">${esc(t.confidence_booster)}</div>
+        </div>
+      </div>` : ''}
+
+      ${t.compliance_reason ? `
+      <div class="ex-row">
+        <span class="ex-icon">🏦</span>
+        <div class="ex-content">
+          <div class="ex-label">Compliance Note</div>
+          <div class="ex-text" style="color:#aaa">${esc(t.compliance_reason)}</div>
+        </div>
+      </div>` : ''}
+
+    </div>`;
+}
+
+function toggleExpand(id) {
+  const body = $(id);
+  const btn  = $('btn-' + id);
+  if (!body) return;
+  body.classList.toggle('open');
+  btn && btn.classList.toggle('open');
+}
+
+/* ── renderTrades ────────────────────────────────────────────── */
+function renderTrades() {
+  const el  = $('p-trades');
+  const dec = S.decisions;
+  const nOk = Object.values(dec).filter(v => v === 'approved').length;
+  const nNo = Object.values(dec).filter(v => v === 'skipped').length;
+
+  // Sort: TAKE IT → REDUCE SIZE → everything else
+  const priority = t => {
+    const v = (t.risk_verdict || '').toUpperCase();
+    if (v.includes('TAKE'))   return 0;
+    if (v.includes('REDUCE')) return 1;
+    return 2;
+  };
+  const sorted = [...S.trades].sort((a, b) => priority(a) - priority(b));
+
+  const nTake   = sorted.filter(t => (t.risk_verdict || '').toUpperCase().includes('TAKE')).length;
+  const nReduce = sorted.filter(t => (t.risk_verdict || '').toUpperCase().includes('REDUCE')).length;
+  const budget  = S.settings?.trading_budget;
+  const budStr  = budget ? '  |  Budget: $' + (budget >= 1000 ? Math.round(budget / 1000) + 'K' : budget) : '';
+
+  // Live capital bar: subtract already-approved position_dollars
+  const acct      = S.account   || {};
+  const totalAvail = acct.available_to_invest ?? 0;
+  const manual     = acct.manual_budget || S.settings?.trading_budget || 0;
+  const approvedDollars = sorted
+    .filter(t => dec[t.ticker] === 'approved')
+    .reduce((sum, t) => sum + (t.position_dollars || 0), 0);
+  const effectiveAvail = Math.max(0, totalAvail - approvedDollars);
+  const capPct = manual > 0 ? Math.min(100, effectiveAvail / manual * 100).toFixed(1) : 0;
+  const capExhausted = effectiveAvail < 500 && manual > 0;
+
+  let html = `
+    <div class="budget-banner ${capExhausted ? 'exhausted' : ''}">
+      <div class="budget-banner-row">
+        <span class="budget-label">💰 Available to invest</span>
+        <span class="budget-amount ${capExhausted ? 'exhausted' : ''}" id="remaining-budget">$${f0(effectiveAvail)}</span>
+      </div>
+      <div class="capital-bar" style="margin-top:8px">
+        <div class="capital-fill ${capExhausted ? 'orange' : 'green'}" id="budget-bar"
+             style="width:${capPct}%"></div>
+      </div>
+      <div class="budget-banner-row" style="margin-top:6px">
+        <span class="budget-sub">of $${f0(manual)} budget</span>
+        <span class="budget-sub" id="trades-sized-note">
+          ${capExhausted
+            ? '⚠ Budget exhausted'
+            : `Trades sized to fit $${f0(effectiveAvail)}`}
+        </span>
+      </div>
+      ${capExhausted ? `
+      <div style="margin-top:10px;text-align:center">
+        <button class="jump-btn" onclick="switchTab('account')">🎛️ Increase Budget</button>
+      </div>` : ''}
+    </div>
+
+    <div class="trades-header">
+      <div class="legend">
+        <span>🟡 TAKE IT</span>
+        <span>🔵 REDUCE SIZE</span>
+        <span>⚪ SKIP IT</span>
+      </div>
+      <div class="sum-bar">
+        <span>${sorted.length} trades</span>
+        ${nTake   ? `<span class="s-take">● ${nTake} TAKE IT</span>` : ''}
+        ${nReduce ? `<span class="s-reduce">● ${nReduce} REDUCE SIZE</span>` : ''}
+        <span>${nOk} approved  |  ${nNo} skipped${budStr}</span>
+      </div>
+    </div>`;
+
+  if (!sorted.length) {
+    html += `<div class="tc"><div class="empty"><p>No cleared trades</p><small>Run the pipeline to generate trades.</small></div></div>`;
+  } else {
+    sorted.forEach(t => {
+      const d      = dec[t.ticker];
+      const long   = (t.direction || '').toUpperCase() === 'LONG';
+      const status = (t.status || '').toUpperCase();
+      const isRej  = status === 'REJECTED';
+      const isWarn = status === 'WARNING';
+      const rr     = t.rr_ratio        != null ? Number(t.rr_ratio).toFixed(2) : '—';
+      const risk   = t.estimated_risk   ? '$' + Number(t.estimated_risk).toFixed(0) : '—';
+      const prof   = t.estimated_profit ? '$' + Number(t.estimated_profit).toFixed(0) : '—';
+      const pos    = t.position_dollars ? '$' + f0(t.position_dollars) : '—';
+      const flags  = Array.isArray(t.flags) ? t.flags : [];
+
+      const stCls = status === 'APPROVED' ? 'st-approved'
+                  : status === 'WARNING'  ? 'st-warning'
+                  : status === 'REJECTED' ? 'st-rejected'
+                  : '';
+      const decCls = d ? 'decided ' + (d === 'approved' ? 'border-ok' : 'border-no') : '';
+
+      html += `
+        <div class="tc ${stCls} ${decCls}">
+          ${d === 'approved' ? '<div class="dec-banner ok">✓  APPROVED</div>' : ''}
+          ${d === 'skipped'  ? '<div class="dec-banner no">✕  SKIPPED</div>'  : ''}
+
+          <div class="tkrow">
+            <span class="tkname">${esc(t.ticker)}</span>
+            <span class="dir-b ${long ? 'long-b' : 'short-b'}">${esc(t.direction)}</span>
+            ${riskVerdictBadge(t.risk_verdict)}
+            ${t.sector ? `<span class="tsec">${esc(t.sector)}</span>` : ''}
+          </div>
+
+          <div class="prrow">
+            <div class="prc">
+              <div class="prlbl">Entry</div>
+              <div class="prval">$${esc(String(t.entry ?? '—'))}</div>
+            </div>
+            <div class="prc">
+              <div class="prlbl">Stop</div>
+              <div class="prval neg">$${esc(String(t.stop ?? '—'))}</div>
+            </div>
+            <div class="prc">
+              <div class="prlbl">Target</div>
+              <div class="prval pos">$${esc(String(t.target ?? '—'))}</div>
+            </div>
+          </div>
+
+          <div class="strow">
+            <span class="st">R/R <b>${esc(rr)}</b></span>
+            <span class="st">Risk <b class="nr">${esc(risk)}</b></span>
+            <span class="st">Profit <b class="gn">${esc(prof)}</b></span>
+            <span class="st">Size <b>${esc(pos)}</b></span>
+          </div>
+
+          ${flags.length ? `<div class="flag-pills">${flags.map(flagPill).join('')}</div>` : ''}
+
+          ${isRej ? `<div class="rej-badge">✕ REJECTED — not eligible to trade</div>` : ''}
+
+          ${expandSection(t)}
+
+          ${!d && !isRej ? `
+          <div class="tbrow">
+            <button class="tb ${isWarn ? 'tb-ok-warn' : 'tb-ok'}"
+                    onclick="decide('${esc(t.ticker)}', true)">
+              ${isWarn ? '⚠️ ' : ''}APPROVE
+            </button>
+            <button class="tb tb-no" onclick="decide('${esc(t.ticker)}', false)">SKIP</button>
+          </div>` : ''}
+        </div>`;
+    });
+  }
+
+  html += tabFooter('trades');
+  el.innerHTML = html;
+}
+
+function decide(ticker, approved) {
+  if (approved) {
+    const trade = S.trades.find(t => t.ticker === ticker) || {};
+    const dir   = trade.direction || 'LONG';
+    const entry = trade.entry ? `$${trade.entry}` : 'market';
+    showConfirm(
+      `Approve ${ticker}?`,
+      `${dir} at ${entry} — this will log the trade as approved.`,
+      () => submitDecide(ticker, true)
+    );
+  } else {
+    submitDecide(ticker, false);
+  }
+}
+
+function submitDecide(ticker, approved) {
+  S.decisions[ticker] = approved ? 'approved' : 'skipped';
+  renderTrades();
+  updateBudgetBanner();
+  showToast(approved ? `✅ ${ticker} approved` : `❌ ${ticker} skipped`);
+
+  api(`/trades/approve/${ticker}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ approved, notes: '' }),
+  }).catch(() => {
+    delete S.decisions[ticker];
+    renderTrades();
+    showToast(`⚠ Could not save decision for ${ticker}`);
+  });
+}
+
+/* ── Live budget banner update (called after each decision) ── */
+function updateBudgetBanner() {
+  const acct        = S.account || {};
+  const totalAvail  = acct.available_to_invest ?? 0;
+  const manual      = acct.manual_budget || S.settings?.trading_budget || 0;
+  const dec         = S.decisions;
+  const approved$   = S.trades
+    .filter(t => dec[t.ticker] === 'approved')
+    .reduce((s, t) => s + (t.position_dollars || 0), 0);
+  const eff         = Math.max(0, totalAvail - approved$);
+  const pct         = manual > 0 ? Math.min(100, eff / manual * 100).toFixed(1) : 0;
+  const exhausted   = eff < 500 && manual > 0;
+
+  const amountEl = $('remaining-budget');
+  const barEl    = $('budget-bar');
+  const noteEl   = $('trades-sized-note');
+  const bannerEl = amountEl?.closest('.budget-banner');
+
+  if (amountEl) amountEl.textContent = '$' + f0(eff);
+  if (amountEl) amountEl.className = 'budget-amount' + (exhausted ? ' exhausted' : '');
+  if (barEl)    { barEl.style.width = pct + '%'; barEl.className = 'capital-fill ' + (exhausted ? 'orange' : 'green'); }
+  if (noteEl)   noteEl.textContent = exhausted ? '⚠ Budget exhausted' : `Trades sized to fit $${f0(eff)}`;
+  if (bannerEl) { bannerEl.className = 'budget-banner' + (exhausted ? ' exhausted' : ''); }
+}
+
+/* ── ACCOUNT ─────────────────────────────────────────────────── */
+async function loadAccount() {
+  const el = $('p-account');
+  el.innerHTML = skeleton();
+  try {
+    const [a, r] = await Promise.all([api('/account'), api('/report/risk')]);
+    S.account    = a;
+    S.riskReport = r;
+    S.fetchedAt.account = new Date();
+    renderAccount();
+  } catch {
+    el.innerHTML = errBox('Could not load account data.');
+  }
+}
+
+function renderAccount() {
+  const el  = $('p-account');
+  const a   = S.account    || {};
+  const r   = S.riskReport || {};
+  const sett = S.settings  || {};
+
+  const cash      = a.cash_available         || a.account_value || 0;
+  const manual    = a.manual_budget           || sett.trading_budget || 0;
+  const committed = a.committed_capital       || 0;
+  const available = a.available_to_invest     ?? Math.max(0, manual - committed);
+  const nPos      = a.open_positions_count    ?? (a.open_positions || []).length;
+  const pos       = a.open_positions          || [];
+  const dp        = a.daily_pnl              || 0;
+  const dpPct     = a.daily_pnl_pct          || 0;
+  const tpnl      = a.total_pnl              || 0;
+  const acctVal   = a.account_value          || 0;
+  const real      = r?.projections?.realistic_month;
+
+  // Bar percentages — cap at 100 to avoid overflow
+  const budgetOfCash   = cash > 0    ? Math.min(100, manual    / cash    * 100).toFixed(1) : 0;
+  const committedOfBgt = manual > 0  ? Math.min(100, committed / manual  * 100).toFixed(1) : 0;
+  const availOfBgt     = manual > 0  ? Math.min(100, available / manual  * 100).toFixed(1) : 0;
+  const pnlBarPct      = Math.min(100, Math.abs(dpPct) / 3 * 100).toFixed(1);
+
+  el.innerHTML = `
+
+    <!-- Account value + daily P&L hero -->
+    <div class="hero">
+      <div class="lbl">Account Value</div>
+      <div class="hero-val">$${f2(acctVal)}</div>
+      <div class="pnl-val ${pc(dp)}">
+        Daily P&amp;L: ${sgn(dp)}$${f2(Math.abs(dp))} (${sgn(dpPct)}${Number(dpPct).toFixed(2)}%)
+      </div>
+      ${a.last_updated ? `<div style="font-size:11px;color:#555;margin-top:6px">Last updated: ${esc(a.last_updated)}</div>` : ''}
+      <div class="pnl-bar-wrap">
+        <div class="pnl-bar-labels">
+          <span>${dp >= 0 ? 'Profit today' : 'Loss today'}</span>
+          <span>Daily limit: −3%</span>
+        </div>
+        <div class="pnl-bar-track">
+          <div class="pnl-bar-fill" style="width:${pnlBarPct}%;background:${dp >= 0 ? '#00C853' : '#FF1744'}"></div>
+        </div>
+        <div class="pnl-bar-note">${dp >= 0 ? `+${Number(dpPct).toFixed(2)}% today` : `${Number(dpPct).toFixed(2)}% — daily limit is −3.00%`}</div>
+      </div>
+    </div>
+
+    <!-- CAPITAL OVERVIEW card -->
+    <div class="capital-card">
+
+      <div class="capital-row">
+        <div class="capital-label">💵 Real Account Cash</div>
+        <div class="capital-value">$${f0(acctVal)}</div>
+        <div class="capital-bar"><div class="capital-fill grey" style="width:100%"></div></div>
+      </div>
+
+      <div class="capital-divider"></div>
+
+      <div class="capital-row">
+        <div class="capital-label">🎯 Trading Budget (set by you)</div>
+        <div class="capital-value gold">$${f0(manual)}</div>
+        <div class="capital-sub">${budgetOfCash}% of your cash</div>
+        <div class="capital-bar"><div class="capital-fill blue" style="width:${budgetOfCash}%"></div></div>
+      </div>
+
+      <div class="capital-divider"></div>
+
+      <div class="capital-row">
+        <div class="capital-label">📊 In Open Trades</div>
+        <div class="capital-value red">$${f0(committed)}</div>
+        <div class="capital-sub">${nPos} position${nPos !== 1 ? 's' : ''} open</div>
+        <div class="capital-bar"><div class="capital-fill orange" style="width:${committedOfBgt}%"></div></div>
+      </div>
+
+      <div class="capital-divider"></div>
+
+      <div class="capital-row highlight-green">
+        <div class="capital-label">✅ Available to Invest NOW</div>
+        <div class="capital-value big green">$${f0(available)}</div>
+        <div class="capital-sub">${availOfBgt}% of budget remaining</div>
+        <div class="capital-bar"><div class="capital-fill green" style="width:${availOfBgt}%"></div></div>
+      </div>
+
+    </div>
+
+    <!-- BUDGET CONTROLS card -->
+    <div class="card">
+      <div class="sec-title">🎛️ Adjust Trading Budget</div>
+      <div style="font-size:13px;color:#888;margin-bottom:10px">Current: <b style="color:#FFD700">$${f0(manual)}</b></div>
+      <div class="quick-row">
+        ${[5000,10000,20000,50000].map(v =>
+          `<button class="qbtn ${manual===v?'active':''}"
+            onclick="previewBudget(${v},'acct')">${v>=1000?'$'+v/1000+'K':v}</button>`
+        ).join('')}
+      </div>
+      <div class="budget-input-row">
+        <input class="budget-input" type="number" id="acct-budget-input"
+               placeholder="Custom amount" value="${manual}" min="1000" step="1000"
+               oninput="previewBudget(this.value,'acct')">
+        <button class="set-btn" onclick="saveBudgetDirect('acct')">Set Budget</button>
+      </div>
+      <div class="budget-preview" id="acct-budget-preview">
+        ${cash > 0 && manual > 0
+          ? `$${f0(manual)} budget → $${f0(available)} available (${(available/manual*100).toFixed(0)}% free)`
+          : ''}
+      </div>
+      ${cash > 0 ? `<div style="font-size:11px;color:#555;margin-top:6px">⚠ Budget cannot exceed cash: $${f0(cash)}</div>` : ''}
+    </div>
+
+    ${real != null ? `
+    <div class="card">
+      <div class="sec-title">Month 1 Projection</div>
+      <div class="proj-big ${pc(real)}">${sgn(real)}$${f2(Math.abs(real))}</div>
+      <div class="proj-sub">Account → $${f0(acctVal + real)}</div>
+    </div>` : ''}
+
+    <!-- Open Positions -->
+    <div class="card">
+      <div class="sec-title">Open Positions${nPos > 0 ? ` (${nPos})` : ''}</div>
+      ${!nPos
+        ? '<p style="color:#666;font-size:14px">No open positions</p>'
+        : pos.map(p => {
+            const pl  = p.unrealized_pl   || 0;
+            const plp = p.unrealized_plpc || 0;
+            return `
+              <div class="posrow">
+                <div>
+                  <div class="postk">${esc(p.ticker)}</div>
+                  <div class="posdt">${esc(String(p.qty))} shares · entry $${esc(String(p.avg_entry_price))}</div>
+                </div>
+                <div>
+                  <div class="pospnl ${pc(pl)}">${sgn(pl)}$${f2(Math.abs(pl))}</div>
+                  <div class="pospct ${pc(plp)}">${sgn(plp)}${Number(plp).toFixed(1)}%</div>
+                </div>
+              </div>`;
+          }).join('')}
+    </div>
+
+    ${tabFooter('account')}
+  `;
+}
+
+/* ── REGIME ──────────────────────────────────────────────────── */
+async function loadRegime() {
+  const el = $('p-regime');
+  el.innerHTML = skeleton();
+  try {
+    const d  = await api('/regime');
+    S.regime = d;
+    S.fetchedAt.regime = new Date();
+    renderRegime();
+  } catch {
+    el.innerHTML = errBox('Could not load regime data.');
+  }
+}
+
+function renderRegime() {
+  const el  = $('p-regime');
+  const r   = S.regime || {};
+  const rk  = (r.regime || 'CAUTIOUS').toUpperCase();
+  const rbg = REGIME_BG[rk] || '#333';
+  const rfg = REGIME_FG[rk] || '#fff';
+
+  const list = (items, ico, icoColor, titleColor) => {
+    if (!items || !items.length) return '';
+    return `
+      <div class="card" ${titleColor === '#FF1744' ? 'style="border-left:3px solid #FF1744"' : ''}>
+        <div class="sec-title" style="color:${titleColor || '#fff'}">${ico} ${esc(sectionName(ico))}</div>
+        ${items.map(it => `
+          <div class="brow">
+            <span class="bico" style="color:${icoColor}">${ico}</span>
+            <span class="btxt">${esc(it)}</span>
+          </div>`).join('')}
+      </div>`;
+  };
+
+  el.innerHTML = `
+    <div class="rh" style="background:${rbg}">
+      <div class="regime-sub" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);margin-bottom:8px">Market Regime</div>
+      <div class="rh-text" style="color:${rfg}">${esc(rk)}</div>
+      <div class="rh-note">${esc(REGIME_DESC[rk] || '')}</div>
+      ${r.pause_condition ? `<div class="rh-note" style="margin-top:6px;font-size:12px">${esc(r.pause_condition)}</div>` : ''}
+    </div>
+
+    ${(r.active_events || []).length ? `
+    <div class="card">
+      <div class="sec-title">Active Events</div>
+      ${(r.active_events).map(it => `
+        <div class="brow">
+          <span class="bico" style="color:#888">•</span>
+          <span class="btxt">${esc(it)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${(r.sectors_to_favor || []).length ? `
+    <div class="card">
+      <div class="sec-title" style="color:#00C853">↑ Sectors to Favor</div>
+      ${(r.sectors_to_favor).map(it => `
+        <div class="brow">
+          <span class="bico" style="color:#00C853">↑</span>
+          <span class="btxt">${esc(it)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${(r.sectors_to_avoid || []).length ? `
+    <div class="card risk-edge">
+      <div class="sec-title" style="color:#FF1744">↓ Sectors to Avoid</div>
+      ${(r.sectors_to_avoid).map(it => `
+        <div class="brow">
+          <span class="bico" style="color:#FF1744">↓</span>
+          <span class="btxt">${esc(it)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${(r.safe_havens || []).length ? `
+    <div class="card">
+      <div class="sec-title" style="color:#FFD600">🛡 Safe Havens</div>
+      ${(r.safe_havens).map(it => `
+        <div class="brow">
+          <span class="bico" style="color:#FFD600">🛡</span>
+          <span class="btxt">${esc(it)}</span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${r.reasoning ? `
+    <div class="card">
+      <div class="sec-title">Analysis</div>
+      <p class="body-txt">${esc(r.reasoning)}</p>
+    </div>` : ''}
+
+    ${r.key_ignored_risk ? `
+    <div class="card risk-edge">
+      <div class="sec-title" style="color:#FF1744">⚠ Key Ignored Risk</div>
+      <p class="body-txt">${esc(r.key_ignored_risk)}</p>
+    </div>` : ''}
+    ${tabFooter('regime')}
+  `;
+}
+
+/* ── Pull-to-refresh ─────────────────────────────────────────── */
+(function setupPTR() {
+  const ptr = $('ptr');
+  let startY = 0, active = false;
+
+  document.querySelectorAll('.panel').forEach(panel => {
+    panel.addEventListener('touchstart', e => {
+      if (panel.scrollTop <= 0) {
+        startY = e.touches[0].clientY;
+        active = true;
+      }
+    }, { passive: true });
+
+    panel.addEventListener('touchmove', e => {
+      if (!active) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 12 && panel.scrollTop <= 0) {
+        ptr.textContent = dy > 60 ? '↑ Release to refresh' : '↓ Pull to refresh';
+        ptr.classList.add('show');
+      } else {
+        ptr.classList.remove('show');
+      }
+    }, { passive: true });
+
+    panel.addEventListener('touchend', e => {
+      if (!active) return;
+      const dy = e.changedTouches[0].clientY - startY;
+      ptr.classList.remove('show');
+      active = false;
+      if (dy > 60 && panel.scrollTop <= 0) loadTab(S.tab);
+    });
+  });
+})();
+
+/* ── Nav wiring ──────────────────────────────────────────────── */
+document.querySelectorAll('.nt').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+/* ── Boot ────────────────────────────────────────────────────── */
+(async function init() {
+  // Show skeleton and "Connecting..." immediately — before any network calls
+  $('p-dashboard').innerHTML = skeleton();
+  setStatus('connecting');
+
+  // Health check runs in parallel — never blocks the page from loading
+  checkHealth();
+  setInterval(checkHealth, 10000);
+
+  // Load dashboard data + settings in parallel (skeleton → real data or error+retry)
+  await loadDashboard();  // fetches /account, /regime, /sectors, /settings together
+
+  // Auto-refresh dashboard every 30 s
+  setInterval(() => {
+    if (S.tab === 'dashboard') loadDashboard();
+  }, 30000);
+})();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('SW registered'))
+        .catch(err => console.log('SW failed:', err));
+    });
+  }
+</script>
+</body>
+</html>
