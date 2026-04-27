@@ -1,36 +1,24 @@
-const CACHE_NAME = 'trading-agent-v3';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg',
-];
+const CACHE_NAME = 'trading-agent-v4'
 
 self.addEventListener('install', event => {
+  self.skipWaiting()
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
-  );
-});
+      .then(cache => cache.addAll(['/trading-dashboard/']))
+  )
+})
 
 self.addEventListener('activate', event => {
-  // Remove old caches when a new SW version takes over
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
+      Promise.all(keys.map(key => caches.delete(key)))
     )
-  );
-});
+  )
+})
 
 self.addEventListener('fetch', event => {
-  // Never cache API calls — always go to the network
-  if (event.request.url.includes('192.168.178.220')) {
-    return;
+  if (event.request.url.includes('railway.app')) {
+    return
   }
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
-  );
-});
+  event.respondWith(fetch(event.request))
+})
