@@ -986,6 +986,63 @@
       margin-top: 8px;
       min-height: 18px;
     }
+
+    /* ── Pipeline status banner (Trades tab top) ─────────────── */
+    #pipe-status-banner { margin-bottom: 10px; }
+    .psb {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 10px; font-size: 13px;
+    }
+    .psb.running  { background: #1A2A10; border: 1px solid #388E3C; }
+    .psb.complete { background: #101A10; border: 1px solid #2E7D32; }
+    .psb.unknown  { background: #1A1A1A; border: 1px solid #333; }
+    .psb-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .psb-text strong { font-size: 13px; }
+    .psb-text span   { font-size: 11px; color: #888; }
+    .psb-check { font-size: 18px; color: #4CAF50; }
+    .psb-pct   { font-size: 12px; font-weight: 700; color: #81C784; white-space: nowrap; }
+    .psb-spin  {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 2px solid #2E7D32; border-top-color: #81C784;
+      border-radius: 50%; animation: psb-spin 0.9s linear infinite;
+    }
+    @keyframes psb-spin { to { transform: rotate(360deg); } }
+    .psb-track { height: 4px; background: #222; border-radius: 2px; margin-top: 5px; }
+    .psb-fill  { height: 100%; background: #4CAF50; border-radius: 2px; transition: width 0.5s ease; }
+
+    /* ── History tab ─────────────────────────────────────────── */
+    .hist-sum {
+      display: flex; gap: 0; background: #1A1A1A;
+      border-radius: 12px; margin-bottom: 14px; overflow: hidden;
+    }
+    .hist-sum-cell {
+      flex: 1; padding: 14px 6px; text-align: center;
+      border-right: 1px solid #2A2A2A;
+    }
+    .hist-sum-cell:last-child { border-right: none; }
+    .hist-sum-val { font-size: 16px; font-weight: 700; }
+    .hist-sum-lbl { font-size: 10px; color: #666; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .hpos { color: #4CAF50; }
+    .hneg { color: #EF5350; }
+    .hist-row {
+      display: flex; align-items: center; gap: 0;
+      background: #111; border-radius: 10px;
+      margin-bottom: 8px; padding: 12px 14px;
+      border-left: 4px solid #333;
+    }
+    .hist-row.win  { border-left-color: #388E3C; }
+    .hist-row.loss { border-left-color: #C62828; }
+    .hist-row.open { border-left-color: #1565C0; }
+    .hist-col-ticker { font-weight: 700; font-size: 15px; min-width: 60px; }
+    .hist-col-prices { flex: 1; font-size: 12px; color: #888; display: flex; flex-direction: column; gap: 2px; }
+    .hist-col-pnl    { text-align: right; font-weight: 700; font-size: 14px; min-width: 70px; }
+    .hist-badge {
+      display: inline-block; padding: 2px 7px; border-radius: 5px;
+      font-size: 10px; font-weight: 700; margin-left: 10px;
+    }
+    .hist-badge.win  { background: rgba(76,175,80,0.2);   color: #81C784; }
+    .hist-badge.loss { background: rgba(239,83,80,0.2);   color: #EF9A9A; }
+    .hist-badge.open { background: rgba(100,181,246,0.2); color: #90CAF9; }
   </style>
 </head>
 <body>
@@ -1012,6 +1069,7 @@
     <div class="panel"    id="p-trades"></div>
     <div class="panel"    id="p-account"></div>
     <div class="panel"    id="p-regime"></div>
+    <div class="panel"    id="p-history"></div>
     <div class="panel"    id="p-settings"></div>
   </div>
 
@@ -1033,6 +1091,10 @@
     <button class="nt" data-tab="regime">
       <span class="ico">🌐</span>
       <span class="lbl">Regime</span>
+    </button>
+    <button class="nt" data-tab="history">
+      <span class="ico">🕐</span>
+      <span class="lbl">History</span>
     </button>
     <button class="nt" data-tab="settings">
       <span class="ico">⚙️</span>
@@ -1209,6 +1271,7 @@ function loadTab(t) {
   if (t === 'trades')    return loadTrades();
   if (t === 'account')   return loadAccount();
   if (t === 'regime')    return loadRegime();
+  if (t === 'history')   return loadHistory();
   if (t === 'settings')  return loadSettings();
 }
 
@@ -1653,6 +1716,58 @@ function runPipelineNow(type) {
 }
 
 /* ── TRADES ──────────────────────────────────────────────────── */
+/* ── Pipeline status banner ──────────────────────────────────── */
+let _pipeTimer = null;
+
+async function refreshPipeStatus() {
+  const banner = $('pipe-status-banner');
+  if (!banner) { clearInterval(_pipeTimer); _pipeTimer = null; return; }
+  try {
+    const ps  = await api('/pipeline/status');
+    const st  = ps.status || 'unknown';
+    const cur = ps.current_step ?? 0;
+    const tot = ps.total_steps  ?? 6;
+    const pct = tot > 0 ? Math.round(cur / tot * 100) : 0;
+    if (st === 'running') {
+      banner.innerHTML = `
+        <div class="psb running">
+          <div class="psb-spin"></div>
+          <div class="psb-text">
+            <strong>Pipeline running…</strong>
+            <span>${esc(ps.step_label || 'Processing')}</span>
+          </div>
+          <div class="psb-pct">Step ${cur}/${tot}</div>
+        </div>
+        <div class="psb-track"><div class="psb-fill" style="width:${pct}%"></div></div>`;
+    } else if (st === 'complete') {
+      banner.innerHTML = `
+        <div class="psb complete">
+          <span class="psb-check">✔</span>
+          <div class="psb-text">
+            <strong>Pipeline complete</strong>
+            <span>Last run: ${esc(ps.updated_at || '')}</span>
+          </div>
+        </div>`;
+      clearInterval(_pipeTimer); _pipeTimer = null;
+    } else {
+      banner.innerHTML = `
+        <div class="psb unknown">
+          <span style="font-size:16px">●</span>
+          <div class="psb-text"><strong>Status unknown</strong></div>
+        </div>`;
+      clearInterval(_pipeTimer); _pipeTimer = null;
+    }
+  } catch {
+    const banner2 = $('pipe-status-banner');
+    if (banner2) banner2.innerHTML = `
+      <div class="psb unknown">
+        <span style="font-size:16px">●</span>
+        <div class="psb-text"><strong>Status unknown</strong></div>
+      </div>`;
+    clearInterval(_pipeTimer); _pipeTimer = null;
+  }
+}
+
 async function loadTrades() {
   const el = $('p-trades');
   el.innerHTML = skeleton();
@@ -1662,9 +1777,87 @@ async function loadTrades() {
     S.fetchedAt.trades = new Date();
     updateBadge(d.count || 0);
     renderTrades();
+    // Start pipeline status polling
+    clearInterval(_pipeTimer);
+    await refreshPipeStatus();
+    _pipeTimer = setInterval(refreshPipeStatus, 15000);
   } catch {
     el.innerHTML = errBox('Could not load trades.');
   }
+}
+
+/* ── History tab ─────────────────────────────────────────────── */
+async function loadHistory() {
+  const el = $('p-history');
+  el.innerHTML = skeleton();
+  try {
+    const d = await api('/trades/history');
+    renderHistory(el, d);
+  } catch {
+    el.innerHTML = errBox('Could not load trade history.');
+  }
+}
+
+function renderHistory(el, d) {
+  const trades = d.trades  || [];
+  const sum    = d.summary || {};
+  const fmt    = (v, prefix='$') => v == null ? '—'
+    : `${v >= 0 ? '+' : ''}${prefix}${Math.abs(v).toFixed(2)}`;
+  const fmtPct = v => v == null ? '' : ` (${v >= 0 ? '+' : ''}${v.toFixed(1)}%)`;
+  const totalPnl = sum.total_pnl ?? 0;
+
+  let html = `
+    <div class="hist-sum">
+      <div class="hist-sum-cell">
+        <div class="hist-sum-val">${sum.total_trades ?? 0}</div>
+        <div class="hist-sum-lbl">Trades</div>
+      </div>
+      <div class="hist-sum-cell">
+        <div class="hist-sum-val">${sum.win_rate_pct ?? 0}%</div>
+        <div class="hist-sum-lbl">Win Rate</div>
+      </div>
+      <div class="hist-sum-cell">
+        <div class="hist-sum-val ${totalPnl >= 0 ? 'hpos' : 'hneg'}">${fmt(totalPnl)}</div>
+        <div class="hist-sum-lbl">Total P&amp;L</div>
+      </div>
+      <div class="hist-sum-cell">
+        <div class="hist-sum-val hpos">${fmt(sum.best_trade)}</div>
+        <div class="hist-sum-lbl">Best</div>
+      </div>
+      <div class="hist-sum-cell">
+        <div class="hist-sum-val hneg">${fmt(sum.worst_trade)}</div>
+        <div class="hist-sum-lbl">Worst</div>
+      </div>
+    </div>`;
+
+  if (!trades.length) {
+    html += `<div class="tc"><div class="empty"><p>No trade history</p><small>No closed orders in the last 7 days.</small></div></div>`;
+  } else {
+    trades.forEach(t => {
+      const st    = (t.status || 'OPEN').toLowerCase();
+      const pnlV  = t.pnl ?? null;
+      const pnlCls = pnlV == null ? '' : pnlV >= 0 ? 'hpos' : 'hneg';
+      const entryStr = t.avg_entry > 0 ? '$' + t.avg_entry.toFixed(2) : '—';
+      const exitStr  = t.avg_exit  > 0 ? '$' + t.avg_exit.toFixed(2)  : '—';
+      const qtyStr   = (t.buy_qty || 0).toFixed(0) + ' sh';
+      const label    = st === 'open' ? 'Unrealized' : (st === 'win' ? 'Profit' : 'Loss');
+      html += `
+        <div class="hist-row ${st}">
+          <div class="hist-col-ticker">${esc(t.ticker)}</div>
+          <div class="hist-col-prices">
+            <span>Entry ${entryStr} → Exit ${exitStr}</span>
+            <span>${qtyStr} · ${label}</span>
+          </div>
+          <div class="hist-col-pnl ${pnlCls}">
+            ${fmt(pnlV)}${fmtPct(t.pnl_pct)}
+          </div>
+          <span class="hist-badge ${st}">${t.status}</span>
+        </div>`;
+    });
+  }
+
+  html += `<div style="text-align:center;font-size:11px;color:#444;margin-top:14px;padding-bottom:8px">Last 7 days · Paper trading</div>`;
+  el.innerHTML = html;
 }
 
 function updateBadge(n) {
@@ -1801,6 +1994,8 @@ function renderTrades() {
   const capExhausted = effectiveAvail < 500 && manual > 0;
 
   let html = `
+    <div id="pipe-status-banner"></div>
+
     <div class="budget-banner ${capExhausted ? 'exhausted' : ''}">
       <div class="budget-banner-row">
         <span class="budget-label">💰 Available to invest</span>
